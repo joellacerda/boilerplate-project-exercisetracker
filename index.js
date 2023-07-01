@@ -16,12 +16,31 @@ app.get("/", (req, res) => {
   res.sendFile(__dirname + "/views/index.html");
 });
 
+app.get("/api/users", async (req, res) => {
+  try {
+    // Retrieve all users from the User model
+    const users = await User.find({}, { username: 1, _id: 1 });
+
+    res.json(users);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Failed to retrieve users" });
+  }
+});
+
 app.post("/api/users", async (req, res) => {
   const { username } = req.body;
 
   try {
+    // Check if the username already exists
+    const existingUser = await User.findOne({ username });
+    if (existingUser) {
+      return res.status(400).json({ error: "Username already exists" });
+    }
+
     // Create a new user using the User model
     const user = await User.create({ username });
+
     res.json({
       username: user.username,
       _id: user._id,
@@ -37,9 +56,6 @@ app.post("/api/users/:_id/exercises", async (req, res) => {
   const { description, duration, date } = req.body;
 
   try {
-    // Find the user by _id using the User model
-    const user = await User.findById(_id);
-
     // Create a new exercise using the Exercise model
     const exercise = await Exercise.create({
       userId: _id,
@@ -48,16 +64,26 @@ app.post("/api/users/:_id/exercises", async (req, res) => {
       date: date ? new Date(date) : undefined,
     });
 
+    // Find the user by _id using the User model
+    const user = await User.findById(_id);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    await user.save(); // Save the updated user object
+
+    // Return the user object with the exercise added
     res.json({
       username: user.username,
       description: exercise.description,
       duration: exercise.duration,
       date: exercise.date.toDateString(),
-      _id: exercise._id,
+      _id: user._id,
     });
   } catch (error) {
     console.log(error);
-    res.status(500).json({ error: "Failed to add exercise" });
+    res.status(500).json({ error: "Server error" });
   }
 });
 
